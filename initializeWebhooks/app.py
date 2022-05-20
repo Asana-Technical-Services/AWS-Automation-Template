@@ -17,9 +17,7 @@ from asana_client import Asana_Client
 def lambda_handler(event, context):
 
     resourceID = os.environ["API_RESOURCE"]
-    # regionID = os.environ["API_REGION"]
-    regionID = "us-west-1"
-
+    regionID = os.environ["API_REGION"]
     domain = f"https://{resourceID}.execute-api.{regionID}.amazonaws.com/Prod"
 
     # Init

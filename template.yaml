@@ -111,6 +111,7 @@ Resources:
       Environment:
         Variables:
           API_RESOURCE: !Ref EventsEndpointAPI
+          API_REGION: !Ref "AWS::Region"
       Policies:
         Statement:
           - Effect: "Allow"
