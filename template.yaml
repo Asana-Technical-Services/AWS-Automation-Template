@@ -83,12 +83,44 @@ Resources:
               - "secretsmanager:GetSecretValue"
             Resource: !Ref BotSecret
 
-  EventFunction:
+  NewTaskFromFormFunction:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: python3.8
     Properties:
-      CodeUri: eventHandler/
+      CodeUri: newTaskFromFormHandler/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Policies:
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: !Ref BotSecret
+
+  NewTaskFromUserFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      CodeUri: newTaskFromUserHandler/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Policies:
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: !Ref BotSecret
+
+  TaskUpdatedFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      CodeUri: taskUpdatedHandler/
       Handler: app.lambda_handler
       Layers:
         - !Ref SharedLayer
@@ -137,12 +169,26 @@ Resources:
                 StringEquals: "PORTFOLIO_PROJECTS_UPDATED"
                 Next: "PortfolioUpdate"
               - Variable: "$.action"
-                StringEquals: "EVENT"
-                Next: "EventUpdate"
-          EventUpdate:
+                StringEquals: "NEW_TASK_FROM_FORM"
+                Next: "NewTaskFromForm"
+              - Variable: "$.action"
+                StringEquals: "NEW_TASK_FROM_USER"
+                Next: "NewTaskFromUser"                
+              - Variable: "$.action"
+                StringEquals: "TASK_UPDATED"
+                Next: "TaskUpdated"                
+          NewTaskFromForm:
             Type: "Task"
-            Resource: !GetAtt [EventFunction, Arn]
+            Resource: !GetAtt [NewTaskFromFormFunction, Arn]
             End: true
+          NewTaskFromUser:
+            Type: "Task"
+            Resource: !GetAtt [NewTaskFromUserFunction, Arn]
+            End: true
+          TaskUpdated:
+            Type: "Task"
+            Resource: !GetAtt [TaskUpdatedFunction, Arn]
+            End: true                        
           PortfolioUpdate:
             Type: "Task"
             Resource: !GetAtt [PortfolioUpdatedFunction, Arn]
@@ -156,5 +202,12 @@ Resources:
           - Effect: "Allow"
             Action:
               - "lambda:InvokeFunction"
-            Resource: !GetAtt [EventFunction, Arn]
-
+            Resource: !GetAtt [NewTaskFromFormFunction, Arn]
+          - Effect: "Allow"
+            Action:
+              - "lambda:InvokeFunction"
+            Resource: !GetAtt [NewTaskFromUserFunction, Arn]
+          - Effect: "Allow"
+            Action:
+              - "lambda:InvokeFunction"
+            Resource: !GetAtt [TaskUpdatedFunction, Arn]                                   
