@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS Cloud Formation template for an Asana automation
+
+Globals:
+  Function:
+    Timeout: 180
+    Tags:
+      Project: "AWS-Automation-Tempalte"
+      Environment: "prod"
+      Description: "An AWS Cloud Formation template to create automations in Asana"
+      BillingCode: "NA"
+      BusinessUnit: ""
+      ProjectManager: ""
+      Owner: "bengraneygreen@asana.com"
+      TechnicalContact: "bengraneygreen@asana.com"
+      CreatedBy: "bengraneygreen@asana.com"
+    Runtime: python3.8
+    Environment:
+      Variables:
+        ASANA_API_URL: "https://app.asana.com/api/1.0/"
+        BOT_SECRET_ARN: !Ref BotSecret
+        WORKSPACE_GID: ""
+        PROJECTS_PORTFOLIO_GID: ""
+
+Resources:
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: sharedLayer
+      CompatibleRuntimes:
+        - python3.8
+    Metadata:
+      BuildMethod: python3.8
+
+  EventsEndpointAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+
+  ApiHandlerFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: apiHandler/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Runtime: python3.8
+      Environment:
+        Variables:
+          BOT_STATE_MACHINE_ARN: !GetAtt [BotStateMachine, Arn]
+      Events:
+        Bot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref EventsEndpointAPI
+            Path: /bot
+            Method: post
+      Policies:
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "states:*"
+            Resource: !GetAtt [BotStateMachine, Arn]
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:*"
+            Resource: !Ref BotSecret
+
+  PortfolioUpdatedFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      CodeUri: portfolioUpdatedHandler/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Policies:
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: !Ref BotSecret
+
+  EventFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      CodeUri: eventHandler/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Policies:
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: !Ref BotSecret
+  
+  InitializeWebhooksFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      CodeUri: initializeWebhooks/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref SharedLayer
+      Environment:
+        Variables:
+          API_RESOURCE: !Ref EventsEndpointAPI
+      Policies:
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:*"
+            Resource: !Ref BotSecret
+
+  BotSecret:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      SecretString: '{"apiKey":"","webhookSecret":""}'   
+
+  BotStateMachine:
+    Type: "AWS::Serverless::StateMachine"
+    Properties:
+      Definition:
+        Comment: "State Machine for Asana Bot"
+        StartAt: "ProcessEvent"
+        States:
+          ProcessEvent:
+            Type: "Choice"
+            Choices:
+              - Variable: "$.action"
+                StringEquals: "PORTFOLIO_PROJECTS_UPDATED"
+                Next: "PortfolioUpdate"
+              - Variable: "$.action"
+                StringEquals: "EVENT"
+                Next: "EventUpdate"
+          EventUpdate:
+            Type: "Task"
+            Resource: !GetAtt [EventFunction, Arn]
+            End: true
+          PortfolioUpdate:
+            Type: "Task"
+            Resource: !GetAtt [PortfolioUpdatedFunction, Arn]
+            End: true
+      Policies:
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "lambda:InvokeFunction"
+            Resource: !GetAtt [PortfolioUpdatedFunction, Arn]
+          - Effect: "Allow"
+            Action:
+              - "lambda:InvokeFunction"
+            Resource: !GetAtt [EventFunction, Arn]
+
