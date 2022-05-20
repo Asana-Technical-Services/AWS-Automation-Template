@@ -83,44 +83,12 @@ Resources:
               - "secretsmanager:GetSecretValue"
             Resource: !Ref BotSecret
 
-  NewTaskFromFormFunction:
+  TaskEventFunction:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: python3.8
     Properties:
-      CodeUri: newTaskFromFormHandler/
-      Handler: app.lambda_handler
-      Layers:
-        - !Ref SharedLayer
-      Policies:
-        Statement:
-          - Effect: "Allow"
-            Action:
-              - "secretsmanager:GetSecretValue"
-            Resource: !Ref BotSecret
-
-  NewTaskFromUserFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: python3.8
-    Properties:
-      CodeUri: newTaskFromUserHandler/
-      Handler: app.lambda_handler
-      Layers:
-        - !Ref SharedLayer
-      Policies:
-        Statement:
-          - Effect: "Allow"
-            Action:
-              - "secretsmanager:GetSecretValue"
-            Resource: !Ref BotSecret
-
-  TaskUpdatedFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: python3.8
-    Properties:
-      CodeUri: taskUpdatedHandler/
+      CodeUri: taskEventHandler/
       Handler: app.lambda_handler
       Layers:
         - !Ref SharedLayer
@@ -179,15 +147,15 @@ Resources:
                 Next: "TaskUpdated"                
           NewTaskFromForm:
             Type: "Task"
-            Resource: !GetAtt [NewTaskFromFormFunction, Arn]
+            Resource: !GetAtt [TaskEventFunction, Arn]
             End: true
           NewTaskFromUser:
             Type: "Task"
-            Resource: !GetAtt [NewTaskFromUserFunction, Arn]
+            Resource: !GetAtt [TaskEventFunction, Arn]
             End: true
           TaskUpdated:
             Type: "Task"
-            Resource: !GetAtt [TaskUpdatedFunction, Arn]
+            Resource: !GetAtt [TaskEventFunction, Arn]
             End: true                        
           PortfolioUpdate:
             Type: "Task"
@@ -202,12 +170,4 @@ Resources:
           - Effect: "Allow"
             Action:
               - "lambda:InvokeFunction"
-            Resource: !GetAtt [NewTaskFromFormFunction, Arn]
-          - Effect: "Allow"
-            Action:
-              - "lambda:InvokeFunction"
-            Resource: !GetAtt [NewTaskFromUserFunction, Arn]
-          - Effect: "Allow"
-            Action:
-              - "lambda:InvokeFunction"
-            Resource: !GetAtt [TaskUpdatedFunction, Arn]                                   
+            Resource: !GetAtt [TaskEventFunction, Arn]
